@@ -72,9 +72,9 @@
 
 ## 8. Per-persona generation parameters (temperature)
 
-**Decision**: Configure two separate LangChain4j `OpenAiChatModel` beans (or equivalent named beans), one per persona, identical in model/base-URL/API-key but differing in `temperature` (and any other sampling parameters that matter): a low temperature for Geralt (favors deterministic, lore-grounded answers) and a higher temperature for Jaskier (favors varied, creative output). Each persona's controller/service uses only its own bean.
+**Decision**: Configure three separate LangChain4j `OpenAiChatModel` beans (or equivalent named beans), one per persona, identical in model/base-URL/API-key but differing in `temperature` (and any other sampling parameters that matter): a low temperature for Geralt and for Yennefer (both favor deterministic, lore-grounded answers) and a higher temperature for Jaskier (favors varied, creative output). Each persona's controller/service uses only its own bean.
 
-**Rationale**: The spec (FR-006) requires Jaskier to be able to improvise original creative content while Geralt stays strictly grounded — this is a generation-parameter difference, not just a system-prompt difference, so it has to be modeled as distinct model configurations rather than one shared client with a runtime-swapped prompt.
+**Rationale**: The spec (FR-006) requires Jaskier to be able to improvise original creative content while Geralt and Yennefer stay strictly grounded — this is a generation-parameter difference, not just a system-prompt difference, so it has to be modeled as distinct model configurations rather than one shared client with a runtime-swapped prompt.
 
 **Alternatives considered**:
 - One shared `ChatLanguageModel` bean with temperature passed per-call — LangChain4j's high-level `ChatLanguageModel` abstraction does not uniformly support per-call parameter overrides across providers as cleanly as configuring distinct model instances; two named beans is simpler and keeps each persona's configuration self-contained and easy to reason about independently.

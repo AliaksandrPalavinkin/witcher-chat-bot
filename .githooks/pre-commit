@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Runs SonarCloud analysis before allowing a commit.
+#
+# Installed automatically for every clone via `core.hooksPath=.githooks`,
+# configured by the exec-maven-plugin execution in pom.xml the first time
+# anyone builds the project (e.g. `./mvnw verify`). See CONTRIBUTING.md.
+#
+# Bypass for a single commit with: git commit --no-verify
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+if [ -z "${SONAR_TOKEN:-}" ]; then
+  echo "error: SONAR_TOKEN is not set." >&2
+  echo "Export a SonarCloud token before committing (see CONTRIBUTING.md)," >&2
+  echo "or bypass this check for one commit with: git commit --no-verify" >&2
+  exit 1
+fi
+
+echo "Running SonarCloud analysis (pre-commit)..."
+./mvnw -q -B verify sonar:sonar -Dsonar.token="$SONAR_TOKEN"

@@ -6,15 +6,15 @@
 
 ## Summary
 
-A stateless Spring Boot backend exposing two independent per-persona chat endpoints — `/api/v1/geralt/chat` and `/api/v1/jaskier/chat`. Each persona is defined by its own system prompt *and* its own LLM generation parameters (notably temperature): Geralt runs at low temperature and stays strictly lore-grounded, while Jaskier runs at a higher temperature and is allowed to improvise original creative content in character. Both personas draw on a shared lore knowledge base — Witcher book text chunked, embedded locally, and stored in PostgreSQL/pgvector, retrieved (RAG) and injected into the prompt sent to a Groq-hosted Llama model. LangChain4j is the LLM/RAG framework used throughout. This service holds no session state itself: each request optionally carries a caller-supplied conversation-context summary; an external AI gateway (routing, caching, cross-persona session/history management) is a separate service entirely out of scope here.
+A stateless Spring Boot backend exposing three independent per-persona chat endpoints — `/api/v1/geralt/chat`, `/api/v1/jaskier/chat`, and `/api/v1/yennefer/chat`. Each persona is defined by its own system prompt *and* its own LLM generation parameters (notably temperature): Geralt and Yennefer run at low temperature and stay strictly lore-grounded (Geralt terse and pragmatic, Yennefer sharp and sarcastic), while Jaskier runs at a higher temperature and is allowed to improvise original creative content in character. All three personas draw on a shared lore knowledge base — Witcher book text chunked, embedded locally, and stored in PostgreSQL/pgvector, retrieved (RAG) and injected into the prompt sent to a Groq-hosted Llama model. LangChain4j is the LLM/RAG framework used throughout. This service holds no session state itself: each request optionally carries a caller-supplied conversation-context summary; an external AI gateway (routing, caching, cross-persona session/history management) is a separate service entirely out of scope here.
 
 ## Technical Context
 
 **Language/Version**: Java 21
 
-**Primary Dependencies**: Spring Boot 4.1.1 (`spring-boot-starter-web`), LangChain4j (`langchain4j-core`; `langchain4j-open-ai` for the `OpenAiChatModel` pointed at Groq's OpenAI-compatible endpoint, instantiated once per persona with its own temperature; `langchain4j-pgvector` for `PgVectorEmbeddingStore`; `langchain4j-embeddings-all-minilm-l6-v2` for the local ONNX embedding model; LangChain4j's `DocumentSplitters`/`EmbeddingStoreIngestor`/`EmbeddingStoreContentRetriever` for the RAG pipeline), Lombok
+**Primary Dependencies**: Spring Boot 4.1.1 (`spring-boot-starter-web`), LangChain4j (`langchain4j-core`; `langchain4j-open-ai` for the `OpenAiChatModel` pointed at Groq's OpenAI-compatible endpoint, instantiated once per persona (three beans) with its own temperature; `langchain4j-pgvector` for `PgVectorEmbeddingStore`; `langchain4j-embeddings-all-minilm-l6-v2` for the local ONNX embedding model; LangChain4j's `DocumentSplitters`/`EmbeddingStoreIngestor`/`EmbeddingStoreContentRetriever` for the RAG pipeline), Lombok
 
-**Storage**: PostgreSQL 16+ with the `pgvector` extension, holding embedded lore chunks (`LoreChunk` records via LangChain4j's `PgVectorEmbeddingStore`), shared by both personas. No conversation-state storage of any kind — the service is stateless per spec FR-009; any caller-supplied context arrives in the request and is discarded after the response is produced.
+**Storage**: PostgreSQL 16+ with the `pgvector` extension, holding embedded lore chunks (`LoreChunk` records via LangChain4j's `PgVectorEmbeddingStore`), shared by all three personas. No conversation-state storage of any kind — the service is stateless per spec FR-009; any caller-supplied context arrives in the request and is discarded after the response is produced.
 
 **Testing**: JUnit 5 + `spring-boot-starter-test` for unit/slice tests; Testcontainers (Postgres+pgvector) for integration tests of the retrieval/ingestion path; a manual `quickstart.md` script for end-to-end validation against the live Groq API.
 
@@ -26,7 +26,7 @@ A stateless Spring Boot backend exposing two independent per-persona chat endpoi
 
 **Constraints**: Groq free-tier rate limits must be respected — on 429/error, degrade gracefully with an in-character "unsure/busy" response (ties to FR-010/FR-011) rather than a raw error; zero paid infrastructure required (free Groq inference tier, locally-run embedding model, self-hosted Postgres); no authentication; the service MUST NOT retain any request/response/session data between calls (statelessness is a hard requirement, not just an assumption, since an external gateway owns all session/history concerns)
 
-**Scale/Scope**: Two independent persona endpoints at launch (Geralt, Jaskier), each with distinct temperature/creative-license settings; shared lore corpus initially the Witcher novel text (design allows adding game-dialogue corpora later without a data-model change); no gateway, routing, caching, or multi-user session logic in this repo
+**Scale/Scope**: Three independent persona endpoints at launch (Geralt, Jaskier, Yennefer), each with distinct temperature/creative-license settings; shared lore corpus initially the Witcher novel text (design allows adding game-dialogue corpora later without a data-model change); no gateway, routing, caching, or multi-user session logic in this repo
 
 ## Constitution Check
 
@@ -55,10 +55,10 @@ specs/001-character-persona-chat/
 ```text
 src/main/java/org/epam/witcherchatbot/
 ├── WitcherChatBotApplication.java
-├── chat/                 # Two REST controllers (GeraltChatController, JaskierChatController) + shared request/response DTOs
+├── chat/                 # Three REST controllers (GeraltChatController, JaskierChatController, YenneferChatController) + shared request/response DTOs
 ├── persona/               # Persona definitions: system-prompt template + generation params (temperature, etc.) per persona
 ├── llm/                   # LangChain4j ChatLanguageModel bean(s) — one configured instance per persona (same Groq model, different temperature)
-├── lore/                  # Ingestion (book text -> chunks -> embeddings via LangChain4j EmbeddingStoreIngestor), PgVectorEmbeddingStore config, EmbeddingStoreContentRetriever (shared by both personas)
+├── lore/                  # Ingestion (book text -> chunks -> embeddings via LangChain4j EmbeddingStoreIngestor), PgVectorEmbeddingStore config, EmbeddingStoreContentRetriever (shared by all personas)
 └── config/                # Cross-cutting Spring configuration (datasource, embedding model, etc.)
 
 src/main/resources/
@@ -71,7 +71,7 @@ src/test/java/org/epam/witcherchatbot/
 └── lore/
 ```
 
-**Structure Decision**: Single Maven module, organized package-by-feature (`chat`, `persona`, `llm`, `lore`, `config`) under the existing `org.epam.witcherchatbot` base package. Two personas map to two controllers and two differently-configured `ChatLanguageModel` beans, sharing the same lore-retrieval infrastructure. No gateway code lives in this repository — it is an explicitly separate, externally-owned service (per spec Clarifications) that will call this app's per-persona endpoints over the network.
+**Structure Decision**: Single Maven module, organized package-by-feature (`chat`, `persona`, `llm`, `lore`, `config`) under the existing `org.epam.witcherchatbot` base package. Three personas map to three controllers and three differently-configured `ChatLanguageModel` beans, sharing the same lore-retrieval infrastructure. No gateway code lives in this repository — it is an explicitly separate, externally-owned service (per spec Clarifications) that will call this app's per-persona endpoints over the network.
 
 ## Complexity Tracking
 

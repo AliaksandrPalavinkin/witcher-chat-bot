@@ -2,18 +2,18 @@
 
 ## Persona
 
-Represents one of the two independently callable personas. Defined in code/config (not user-editable at runtime in v1) — a small fixed set, not a database table. Each persona backs exactly one REST endpoint (`/api/v1/geralt/chat`, `/api/v1/jaskier/chat`).
+Represents one of the three independently callable personas. Defined in code/config (not user-editable at runtime in v1) — a small fixed set, not a database table. Each persona backs exactly one REST endpoint (`/api/v1/geralt/chat`, `/api/v1/jaskier/chat`, `/api/v1/yennefer/chat`).
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | enum/string (`GERALT`, `JASKIER`) | Stable identifier, also used as the `personaId` tag on every response (FR-008) |
-| `displayName` | string | e.g., "Geralt of Rivia", "Jaskier (Dandelion)" |
-| `systemPrompt` | string (template) | Voice/tone/knowledge-scope instructions injected as the LLM system message (FR-002) |
-| `temperature` | double | LLM sampling temperature for this persona's `ChatLanguageModel` instance — low for Geralt (strict, lore-grounded, FR-006), higher for Jaskier (creative license, FR-006) |
-| `allowsCreativeInvention` | boolean | Drives FR-006/FR-010 behavior: whether the persona may improvise original content not grounded in the lore corpus (`true` for Jaskier, `false` for Geralt) |
-| `fallbackLine` | string | In-character line used when the LLM call fails/is rate-limited (FR-010, FR-011) |
+| `id` | enum/string (`GERALT`, `JASKIER`, `YENNEFER`) | Stable identifier, also used as the `personaId` tag on every response (FR-008) |
+| `displayName` | string | e.g., "Geralt of Rivia", "Jaskier (Dandelion)", "Yennefer of Vengerberg" |
+| `systemPrompt` | string (template) | Voice/tone/knowledge-scope instructions injected as the LLM system message (FR-002); MUST also encode the FR-005 mature-but-not-explicit tone boundary for every persona |
+| `temperature` | double | LLM sampling temperature for this persona's `ChatLanguageModel` instance — low for Geralt and Yennefer (strict, lore-grounded, FR-006), higher for Jaskier (creative license, FR-006) |
+| `allowsCreativeInvention` | boolean | Drives FR-006 behavior: whether the persona may improvise original content not grounded in the lore corpus (`true` for Jaskier, `false` for Geralt and Yennefer) |
+| `fallbackLine` | string | Static in-character line used ONLY when the LLM call itself fails/is rate-limited (FR-011 / upstream degradation). This is distinct from FR-010's "unsure about a lore fact" behavior, which is a normal, successful LLM response produced dynamically via the system prompt, not this static line. |
 
-**Validation rules**: exactly the two supported personas at launch (FR-001); adding a persona means adding a new enum value + prompt + params + a new controller endpoint, not a schema change.
+**Validation rules**: exactly the three supported personas at launch (FR-001); adding a persona means adding a new enum value + prompt + params + a new controller endpoint, not a schema change.
 
 ## Chat Request
 
